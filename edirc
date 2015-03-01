@@ -7,7 +7,7 @@ printf 'NICK %s\n'  "$nick" >&3
 printf 'USER %s %s * :%s\n' "${user:-"$nick"}" "${mode:-0}" "${realname:-"$nick"}" >&3
 
 # fast way to enter commands directly  (and actually the only way to manage the bot)
-cat <> fifo >&3 &
+mkfifo fifo && cat <> fifo >&3 &
 # upload pastes
 inotifywait --format %f -m . -e create 2> /dev/null |
 while read -r; do
