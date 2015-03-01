@@ -55,15 +55,17 @@ while read -r raw; do
       if ! [[ -f ed:$target ]]; then
         > "ed:$target"
         mkfifo "fifo:$target"
-        ./red "ed:$target" <> "fifo:$target" |& fold -w 250 |
+        ./red "ed:$target" <> "fifo:$target" |& #fold -w 250 |   # fold sucks
         while read -r; do
           if (( SECONDS < 1 )); then (( row ++ ))
           else SECONDS=0 row=1
           fi
           if (( row < 3 )); then
             printf "PRIVMSG %s :%s\n" "$target" "$REPLY"
+            printf "PRIVMSG %s :%s\n" "$target" "$REPLY" >> set-x
           elif (( row == 3 )); then
             printf "PRIVMSG %s :%s  /* max 3 lines/second */\n" "$target" "$REPLY"
+            printf "PRIVMSG %s :%s  /* max 3 lines/second */\n" "$target" "$REPLY" >> set-x
           fi
         done >&3 &
       fi
