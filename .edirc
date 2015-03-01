@@ -1,0 +1,16 @@
+# sample iirc
+
+# mandatory fields
+nick=edirc
+host=irc.freenode.net
+port=6667
+[[ -r ~/.password ]] && source ~/.password
+
+# all the rest
+user=edirc
+mode=0
+realname="edirc: the ed bot"
+timeformat=%T
+
+# you can now add extra commands here, like:
+# cd some-directory

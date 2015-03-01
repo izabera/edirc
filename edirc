@@ -1,5 +1,5 @@
 #!/bin/bash
-[[ -s ${rc="$HOME/.iirc"} && -r $rc ]] && source "$rc" || # disable rcfile: export rc=
+[[ -s ${rc="$HOME/.edirc"} && -r $rc ]] && source "$rc" || # disable rcfile: export rc=
 { read -r -p 'Nick: ' nick; read -r -p 'Host: ' host; read -r -p 'Port: ' port; }
 
 exec 3<>"/dev/tcp/$host/$port" || { echo "Connection to $host failed" >&2 ; exit 1; }
