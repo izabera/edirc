@@ -12,9 +12,10 @@ mkfifo fifo && cat <> fifo >&3 &
 inotifywait --format %f -m . -e create 2> /dev/null |
 while read -r; do
   if [[ $REPLY = paste:* ]]; then
-    paste=$(curl -F "aringa=<$REPLY" arin.ga && rm "$REPLY")
+    paste=$(curl -sF "aringa=<$REPLY" arin.ga)
     REPLY=${REPLY#paste:} REPLY=${REPLY//,/\/}
     printf 'PRIVMSG %s :%s\n' "${REPLY:-Upload failed}" "$paste"
+    rm -f "$REPLY"
   fi
 done >&3 &
 
@@ -24,13 +25,20 @@ trap 'rm -f ed:* paste:* fifo*; kill -TERM -$$' EXIT
 # parse what we get from the server
 while read -r raw; do
   raw=${raw%$'\r'}
-  read -r sender type target msg <<< "$raw"
+  printf "%($timeformat)T %s\n" -1 "$raw" >> "log$host" # log everything here
+
+  # splitting and keeping the whitespace
+  # assuming there's only 1 space...
+  sender=${raw%% *}
+  type=${raw#"$sender "} type=${type%% *}
+  target=${raw#"$sender $type "} target=${target%% *}
+  msg=${raw#"$sender $type $target ":}
+
   if [[ $sender = PING ]]; then
     printf 'PONG %s\n' "$type" >&3
     continue
   fi
 
-  msg=${msg#?}   # strip :
   if [[ $type = PRIVMSG ]]; then
 
     # in channels, ignore everything that doesn't start with ,
@@ -39,19 +47,31 @@ while read -r raw; do
       [[ $target = "$nick" ]] && target=$sender
 
       # "/" is valid in chan names and will be replaced by "," which is not
-      sender=${sender//\//,}
+      sender=${sender//\//,} sender=${sender#:} sender=${sender%%!*}
+
+      # $REPLY is unquoted to match globs
+      while read -r; do [[ $sender = $REPLY ]] && continue 2; done < spammers
+      # would mapfile be faster?
 
       # if the file doesn't yet exist, ed is not running, start it
       # create a file for every user or channel
       if [[ -f ed:$sender ]]; then
         > "ed:$sender"
         mkfifo "fifo:$sender"
-        ./red "ed:$sender" <> "fifo:$sender" |&
-        while read -r; do printf 'PRIVMSG %s :%s\n' "$target" "$REPLY"; done >&3 &
+        ./red "ed:$sender" <> "fifo:$sender" |& fold -w 250 |
+        while read -r; do
+          if (( SECONDS < 1 )); then (( row ++ ))
+          else SECONDS=0 row=1
+          fi
+          if (( row < 3 )); then
+            printf "PRIVMSG %s :%s\n" "$target" "$REPLY"
+          elif (( row == 3 )); then
+            printf "PRIVMSG %s :%s  /* max 3 lines/second */\n" "$target" "$REPLY"
+          fi
+        done >&3 &
       fi
 
       printf '%s\n' "${msg#,}" > "fifo:$sender"
     fi
   fi
-  printf "%($timeformat)T %s\n" -1 "$raw" >> "log$host" # log everything here
 done <&3
