@@ -27,12 +27,9 @@ while read -r raw; do
   raw=${raw%$'\r'}
   printf "%($timeformat)T %s\n" -1 "$raw" >> "log$host" # log everything here
 
-  # splitting and keeping the whitespace
-  # assuming there's only 1 space...
-  sender=${raw%% *}
-  type=${raw#"$sender "} type=${type%% *}
-  target=${raw#"$sender $type "} target=${target%% *}
-  msg=${raw#"$sender $type $target ":}
+  # most clients don't show trailing whitespace anyway
+  read -r sender type target msg <<< "$raw"
+  msg=${msg#:}
 
   if [[ $sender = PING ]]; then
     printf 'PONG %s\n' "$type" >&3
@@ -42,7 +39,7 @@ while read -r raw; do
   if [[ $type = PRIVMSG ]]; then
 
     # in channels, ignore everything that doesn't start with ,
-    # privately, everything is fine   (still remove any leading , for the sake of consistency)
+    # privately, everything is fine   (still remove a leading , for the sake of consistency)
     if [[ $msg = ,* || $target = "$nick" ]]; then
       [[ $target = "$nick" ]] && target=$sender
 
@@ -50,15 +47,15 @@ while read -r raw; do
       sender=${sender//\//,} sender=${sender#:} sender=${sender%%!*}
 
       # $REPLY is unquoted to match globs
-      while read -r; do [[ $sender = $REPLY ]] && continue 2; done < spammers
+      [[ -f spammers ]] && while read -r; do [[ $sender = $REPLY ]] && continue 2; done < spammers
       # would mapfile be faster?
 
       # if the file doesn't yet exist, ed is not running, start it
       # create a file for every user or channel
-      if [[ -f ed:$sender ]]; then
-        > "ed:$sender"
-        mkfifo "fifo:$sender"
-        ./red "ed:$sender" <> "fifo:$sender" |& fold -w 250 |
+      if ! [[ -f ed:$target ]]; then
+        > "ed:$target"
+        mkfifo "fifo:$target"
+        ./red "ed:$target" <> "fifo:$target" |& fold -w 250 |
         while read -r; do
           if (( SECONDS < 1 )); then (( row ++ ))
           else SECONDS=0 row=1
@@ -71,7 +68,7 @@ while read -r raw; do
         done >&3 &
       fi
 
-      printf '%s\n' "${msg#,}" > "fifo:$sender"
+      printf '%s\n' "${msg#,}" > "fifo:$target"
     fi
   fi
 done <&3
