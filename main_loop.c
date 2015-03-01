@@ -159,6 +159,15 @@ static const char * skip_blanks( const char * p )
   }
 
 
+/* pastebin */
+char * pastebin ( char * string ) {
+  char * paste = malloc (strlen("paste:") + strlen (string) + 1);
+  if ( ! paste ) return paste;
+  strcpy(paste, "paste:");
+  strcat(paste, string);
+  return paste;
+}
+  
 /* Return pointer to copy of filename in the command buffer */
 static const char * get_filename( const char ** const ibufpp )
   {
@@ -533,9 +542,9 @@ static int exec_command( const char ** const ibufpp, const int prev_status,
     case 'Q': if( unexpected_address( addr_cnt ) ||
                   !get_command_suffix( ibufpp, &gflags ) ) return ERR;
               if( c == 'P' ) prompt_on = !prompt_on;
-              else if( modified() && !scripted() && c == 'q' &&
-                       prev_status != EMOD ) return EMOD;
-              else return QUIT;
+              /*else if( modified() && !scripted() && c == 'q' &&*/
+                       /*prev_status != EMOD ) return EMOD;*/
+              /*else return QUIT;*/
               break;
     case 'r': if( unexpected_command_suffix( **ibufpp ) ) return ERR;
               if( addr_cnt == 0 ) second_addr = last_addr();
@@ -545,7 +554,7 @@ static int exec_command( const char ** const ibufpp, const int prev_status,
               if( !def_filename[0] && fnp[0] != '!' ) set_def_filename( fnp );
               if( traditional() && !fnp[0] && !def_filename[0] )
                 { set_error_msg( "No current filename" ); return ERR; }
-              addr = read_file( fnp[0] ? fnp : def_filename, second_addr );
+              addr = read_file( /* fnp[0] ? fnp : */ def_filename, second_addr );
               if( addr < 0 ) return ERR;
               if( addr ) set_modified( true );
               break;
@@ -575,19 +584,40 @@ static int exec_command( const char ** const ibufpp, const int prev_status,
               if( !def_filename[0] && fnp[0] != '!' ) set_def_filename( fnp );
               if( traditional() && !fnp[0] && !def_filename[0] )
                 { set_error_msg( "No current filename" ); return ERR; }
-              addr = write_file( fnp[0] ? fnp : def_filename,
+              addr = write_file( /* fnp[0] ? fnp :*/ def_filename,
                      ( c == 'W' ) ? "a" : "w", first_addr, second_addr );
               if( addr < 0 ) return ERR;
               if( addr == last_addr() ) set_modified( false );
-              else if( modified() && !scripted() && n == 'q' &&
-                       prev_status != EMOD ) return EMOD;
-              if( n == 'q' || n == 'Q' ) return QUIT;
+              /*else if( modified() && !scripted() && n == 'q' &&*/
+                       /*prev_status != EMOD ) return EMOD;*/
+              /*if( n == 'q' || n == 'Q' ) return QUIT;*/
               break;
     case 'x': if( second_addr < 0 || last_addr() < second_addr )
                 { invalid_address(); return ERR; }
               if( !get_command_suffix( ibufpp, &gflags ) ) return ERR;
               if( !isglobal ) clear_undo_stack();
               if( !put_lines( second_addr ) ) return ERR;
+              break;
+    case 'X': /*
+                 eXport
+
+                 write to a different file that will be monitored by the bot
+                 the bot will then:
+                 - upload the file
+                 - print the url to the user/chan
+                 - delete the file
+              */
+              if( addr_cnt == 0 && last_addr() == 0 )
+                first_addr = second_addr = 0;
+              else if( !check_addr_range( 1, last_addr(), addr_cnt ) )
+                return ERR;
+              fnp = pastebin(def_filename);
+              if ( fnp ) {
+                addr = write_file( fnp, "w", first_addr, second_addr );
+                if ( addr < 0 ) return ERR;
+                free ((char *)fnp);
+              }
+              else return ERR;
               break;
     case 'y': if( !check_current_addr( addr_cnt ) ||
                   !get_command_suffix( ibufpp, &gflags ) ||
