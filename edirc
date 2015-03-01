@@ -14,7 +14,7 @@ while read -r; do
   if [[ $REPLY = paste:* ]]; then
     paste=$(curl -sF "aringa=<$REPLY" arin.ga)
     rm -f "$REPLY"
-    REPLY=${REPLY#paste:} REPLY=${REPLY//,/\/}
+    REPLY=${REPLY#paste:ed:} REPLY=${REPLY//,/\/}
     printf 'PRIVMSG %s :%s\n' "${REPLY:-Upload failed}" "$paste"
   fi
 done >&3 &
