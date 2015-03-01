@@ -19,7 +19,7 @@ while read -r; do
 done >&3 &
 
 shopt -s nullglob
-trap 'rm ed:* paste:* fifo*; kill -TERM -$$' EXIT
+trap 'rm -f ed:* paste:* fifo*; kill -TERM -$$' EXIT
 
 # parse what we get from the server
 while read -r raw; do
