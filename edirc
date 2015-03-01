@@ -1,0 +1,57 @@
+#!/bin/bash
+[[ -s ${rc="$HOME/.iirc"} && -r $rc ]] && source "$rc" || # disable rcfile: export rc=
+{ read -r -p 'Nick: ' nick; read -r -p 'Host: ' host; read -r -p 'Port: ' port; }
+
+exec 3<>"/dev/tcp/$host/$port" || { echo "Connection to $host failed" >&2 ; exit 1; }
+printf 'NICK %s\n'  "$nick" >&3
+printf 'USER %s %s * :%s\n' "${user:-"$nick"}" "${mode:-0}" "${realname:-"$nick"}" >&3
+
+# fast way to enter commands directly  (and actually the only way to manage the bot)
+cat <> fifo >&3 &
+# upload pastes
+inotifywait --format %f -m . -e create 2> /dev/null |
+while read -r; do
+  if [[ $REPLY = paste:* ]]; then
+    paste=$(curl -F "aringa=<$REPLY" arin.ga && rm "$REPLY")
+    REPLY=${REPLY#paste:} REPLY=${REPLY//,/\/}
+    printf 'PRIVMSG %s :%s\n' "${REPLY:-Upload failed}" "$paste"
+  fi
+done >&3 &
+
+shopt -s nullglob
+trap 'rm ed:* paste:* fifo*; kill -TERM -$$' EXIT
+
+# parse what we get from the server
+while read -r raw; do
+  raw=${raw%$'\r'}
+  read -r sender type target msg <<< "$raw"
+  if [[ $sender = PING ]]; then
+    printf 'PONG %s\n' "$type" >&3
+    continue
+  fi
+
+  msg=${msg#?}   # strip :
+  if [[ $type = PRIVMSG ]]; then
+
+    # in channels, ignore everything that doesn't start with ,
+    # privately, everything is fine   (still remove any leading , for the sake of consistency)
+    if [[ $msg = ,* || $target = "$nick" ]]; then
+      [[ $target = "$nick" ]] && target=$sender
+
+      # "/" is valid in chan names and will be replaced by "," which is not
+      sender=${sender//\//,}
+
+      # if the file doesn't yet exist, ed is not running, start it
+      # create a file for every user or channel
+      if [[ -f ed:$sender ]]; then
+        > "ed:$sender"
+        mkfifo "fifo:$sender"
+        ./red "ed:$sender" <> "fifo:$sender" |&
+        while read -r; do printf 'PRIVMSG %s :%s\n' "$target" "$REPLY"; done >&3 &
+      fi
+
+      printf '%s\n' "${msg#,}" > "fifo:$sender"
+    fi
+  fi
+  printf "%($timeformat)T %s\n" -1 "$raw" >> "log$host" # log everything here
+done <&3
