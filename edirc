@@ -13,9 +13,9 @@ inotifywait --format %f -m . -e create 2> /dev/null |
 while read -r; do
   if [[ $REPLY = paste:* ]]; then
     paste=$(curl -sF "aringa=<$REPLY" arin.ga)
+    rm -f "$REPLY"
     REPLY=${REPLY#paste:} REPLY=${REPLY//,/\/}
     printf 'PRIVMSG %s :%s\n' "${REPLY:-Upload failed}" "$paste"
-    rm -f "$REPLY"
   fi
 done >&3 &
 
@@ -41,10 +41,9 @@ while read -r raw; do
     # in channels, ignore everything that doesn't start with ,
     # privately, everything is fine   (still remove a leading , for the sake of consistency)
     if [[ $msg = ,* || $target = "$nick" ]]; then
-      [[ $target = "$nick" ]] && target=$sender
-
       # "/" is valid in chan names and will be replaced by "," which is not
       sender=${sender//\//,} sender=${sender#:} sender=${sender%%!*}
+      [[ $target = "$nick" ]] && target=$sender
 
       # $REPLY is unquoted to match globs
       [[ -f spammers ]] && while read -r; do [[ $sender = $REPLY ]] && continue 2; done < spammers
@@ -62,10 +61,8 @@ while read -r raw; do
           fi
           if (( row < 3 )); then
             printf "PRIVMSG %s :%s\n" "$target" "$REPLY"
-            printf "PRIVMSG %s :%s\n" "$target" "$REPLY" >> set-x
           elif (( row == 3 )); then
             printf "PRIVMSG %s :%s  /* max 3 lines/second */\n" "$target" "$REPLY"
-            printf "PRIVMSG %s :%s  /* max 3 lines/second */\n" "$target" "$REPLY" >> set-x
           fi
         done >&3 &
       fi
