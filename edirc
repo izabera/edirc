@@ -95,7 +95,7 @@ while read -r raw; do
 
       # if the fifo doesn't yet exist, ed is not running, start it
       # create a file for every user or channel
-      if ! [[ -f fifo:$target ]]; then
+      if ! [[ -p fifo:$target ]]; then
         touch "ed:$target"
         mkfifo "fifo:$target"
         ./red "ed:$target" <> "fifo:$target" |&
