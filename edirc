@@ -9,18 +9,15 @@ trap 'rm -f paste:* fifo*; declare -p spammers > spammers; kill -TERM -$$' EXIT
 if [[ -f ./spammers ]]; then
   . ./spammers
 else
-  declare -A spammers
+  declare -A spammers=([,]=x)   # at least one element, to avoid an error with declare -p
 fi
 
 
 ignore () {
-  for nick; do
-    case $nick in
-      -?*) unset "spammers[$nick]";;
-      +?*) nick=${nick#+} ;&    # use ++nick to ignore +nick
-      ?*) spammers["$nick"]=x
-    esac
-  done
+  case $1 in
+    add) shift; for nick; do spammers["$nick"]=x; done ;;
+    del) shift; for nick; do unset "spammers["$nick"]"; done ;;
+  esac
 }
 
 
