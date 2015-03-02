@@ -30,7 +30,7 @@ join () for chan; do printf 'JOIN %s\n' "$chan"; done
 part () { [[ $1 ]] && printf 'PART %s :%s\n' "$1" "${2-leaving}"; }
 
 
-say () { [[ $1 ]] && printf 'PRIVMSG %s :%s\n' "$1" "$2"; }
+say () { [[ $1 ]] && printf 'PRIVMSG %s :%s\n' "$1" "${*:2}"; }
 
 
 exec 3<>"/dev/tcp/$host/$port" || { echo "Connection to $host failed" >&2 ; exit 1; }
