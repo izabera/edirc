@@ -28,10 +28,12 @@ say () { [[ $1 ]] && printf 'PRIVMSG %s :%s\n' "$1" "$2"; }
 
 
 exec 3<>"/dev/tcp/$host/$port" || { echo "Connection to $host failed" >&2 ; exit 1; }
-printf 'NICK %s\n'  "$nick" >&3
-printf 'USER %s %s * :%s\n' "${user:-"$nick"}" "${mode:-0}" "${realname:-"$nick"}" >&3
-[[ $nickserv = yes ]] && printf 'PRIVMSG NickServ :identify %s\n' "$password"
-join "${channels[@]}"
+{
+  printf 'NICK %s\n'  "$nick"
+  printf 'USER %s %s * :%s\n' "${user:-"$nick"}" "${mode:-0}" "${realname:-"$nick"}"
+  [[ $nickserv = yes ]] && printf 'PRIVMSG NickServ :identify %s\n' "$password"
+  join "${channels[@]}"
+} >&3
 
 
 # fast way to enter commands directly
