@@ -15,5 +15,7 @@ mode=0
 realname="edirc: the ed bot"
 timeformat=%T
 
+trigger=:
+
 # you can now add extra commands here, like:
 # cd some-directory

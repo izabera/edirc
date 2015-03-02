@@ -83,7 +83,7 @@ while read -r raw; do
 
     # in channels, ignore everything that doesn't start with ,
     # privately, everything is fine   (still remove a leading , for the sake of consistency)
-    if [[ $msg = :* || $target = "$nick" ]]; then
+    if [[ $msg = "${trigger-:}"* || $target = "$nick" ]]; then
 
       if [[ $msg = !* && $sender = "$owner" ]]; then
         # use responsibly
@@ -112,7 +112,7 @@ while read -r raw; do
         done &
       fi
 
-      printf '%s\n' "${msg#:}" > "fifo:$target"
+      printf '%s\n' "${msg#"${trigger-:}"}" > "fifo:$target"
     fi
   fi
 done <&3
