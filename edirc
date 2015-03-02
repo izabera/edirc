@@ -2,7 +2,7 @@
 [[ -s ${rc="$HOME/.edirc"} && -r $rc ]] && source "$rc" || # disable rcfile: export rc=
 { read -r -p 'Nick: ' nick; read -r -p 'Host: ' host; read -r -p 'Port: ' port; }
 
-BASH_XTRACEFD=4; exec 4> set-x; set -x
+exec 4> set-x; BASH_XTRACEFD=4; set -x
 #it won't be needed, just in case
 
 shopt -s nullglob extglob nocasematch
@@ -17,8 +17,8 @@ fi
 
 ignore () {
   case $1 in
-    add) shift; for nick; do spammers["$nick"]=x; done ;;
-    del) shift; for nick; do unset "spammers["$nick"]"; done ;;
+    add) shift; for nick; do spammers["${nick,,}"]=x; done ;;
+    del) shift; for nick; do unset "spammers["${nick,,}"]"; done ;;
     list) printf 'PRIVMSG %s :%s\n' "$owner" "${!spammers[*]}"
   esac
 }
@@ -78,7 +78,7 @@ while read -r raw; do
     # "/" is valid in chan names and will be replaced by "," which is not
     sender=${sender//\//,} sender=${sender#:} sender=${sender%%!*}
 
-    [[ ${spammers[$nick]} ]] && continue
+    [[ ${spammers[${sender,,}]} ]] && continue
 
     # in channels, ignore everything that doesn't start with ,
     # privately, everything is fine   (still remove a leading , for the sake of consistency)
