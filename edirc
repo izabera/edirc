@@ -33,7 +33,7 @@ ignore () {
   esac
 }
 
-join () for chan; do printf 'JOIN %s\n' "$chan"; done
+join () { printf 'JOIN %s\n' "$@"; }
 
 part () { [[ $1 ]] && printf 'PART %s :%s\n' "$1" "${2-leaving}"; }
 
