@@ -2,25 +2,52 @@
 [[ -s ${rc="$HOME/.edirc"} && -r $rc ]] && source "$rc" || # disable rcfile: export rc=
 { read -r -p 'Nick: ' nick; read -r -p 'Host: ' host; read -r -p 'Port: ' port; }
 
+
+shopt -s nullglob extglob nocasematch
+trap 'rm -f paste:* fifo*; kill -TERM -$$' EXIT
+
+
+ignore () {
+  for nick; do
+    case $nick in
+      -*) for i in "${!spammers[@]}"; do [[ ${spammers[i]} = "$1" ]] && unset "spammers[i]"; done ;;
+      +*) nick=${nick#+} ;&    # use ++nick to ignore +nick
+      *) IFS=, eval '[[ ,"${spammers[*]}", = *,"$1",* ]]' || spammers+=("$1")
+    esac
+  done
+}
+
+
+join () for chan; do printf 'JOIN %s\n' "$chan"; done
+
+
+part () { [[ $1 ]] && printf 'PART %s :%s\n' "$1" "${2-leaving}"; }
+
+
+say () { [[ $1 ]] && printf 'PRIVMSG %s :%s\n' "$1" "$2"; }
+
+
 exec 3<>"/dev/tcp/$host/$port" || { echo "Connection to $host failed" >&2 ; exit 1; }
 printf 'NICK %s\n'  "$nick" >&3
 printf 'USER %s %s * :%s\n' "${user:-"$nick"}" "${mode:-0}" "${realname:-"$nick"}" >&3
+[[ $nickserv = yes ]] && printf 'PRIVMSG NickServ :identify %s\n' "$password"
+join "${channels[@]}"
 
-# fast way to enter commands directly  (and actually the only way to manage the bot)
+
+# fast way to enter commands directly
 mkfifo fifo && cat <> fifo >&3 &
+
 # upload pastes
 inotifywait --format %f -m . -e create 2> /dev/null |
 while read -r; do
   if [[ $REPLY = paste:* ]]; then
     paste=$(curl -sF "aringa=<$REPLY" arin.ga)
     rm -f "$REPLY"
-    REPLY=${REPLY#paste:ed:} REPLY=${REPLY//,/\/}
+    REPLY=${REPLY#paste:ed:} REPLY=${REPLY//,/\/} REPLY=${REPLY:+$REPLY/raw}  # mira|krank wanted the raw link
     printf 'PRIVMSG %s :%s\n' "${REPLY:-Upload failed}" "$paste"
   fi
 done >&3 &
 
-shopt -s nullglob
-trap 'rm -f ed:* paste:* fifo*; kill -TERM -$$' EXIT
 
 # parse what we get from the server
 while read -r raw; do
@@ -38,23 +65,30 @@ while read -r raw; do
 
   if [[ $type = PRIVMSG ]]; then
 
+    # "/" is valid in chan names and will be replaced by "," which is not
+    sender=${sender//\//,} sender=${sender#:} sender=${sender%%!*}
+
+    IFS=, eval '[[ ,"${spammers[*]}", = *,"$sender",* ]]' && continue
+
     # in channels, ignore everything that doesn't start with ,
     # privately, everything is fine   (still remove a leading , for the sake of consistency)
     if [[ $msg = :* || $target = "$nick" ]]; then
-      # "/" is valid in chan names and will be replaced by "," which is not
-      sender=${sender//\//,} sender=${sender#:} sender=${sender%%!*}
-      [[ $target = "$nick" ]] && target=$sender
 
-      # $REPLY is unquoted to match globs
-      [[ -f spammers ]] && while read -r; do [[ $sender = $REPLY ]] && continue 2; done < spammers
-      # would mapfile be faster?
+      if [[ $msg = !* && $sender = "$owner" ]]; then
+        # use responsibly
+        eval "${msg#!}"
+        continue
+      fi
+
+      [[ $target = "$nick" ]] && target=$sender
 
       # if the file doesn't yet exist, ed is not running, start it
       # create a file for every user or channel
       if ! [[ -f ed:$target ]]; then
         > "ed:$target"
         mkfifo "fifo:$target"
-        ./red "ed:$target" <> "fifo:$target" |& #fold -w 250 |   # fold sucks
+        ./red "ed:$target" <> "fifo:$target" |&
+        while read -r -n 250; do printf "%s\n" "$REPLY"; done | # this may break utf-8 characters
         while read -r; do
           if (( SECONDS < 1 )); then (( row ++ ))
           else SECONDS=0 row=1

@@ -17,6 +17,15 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+/* edirc edits:
+ * - use X to write to a special file,
+ *   the bot will monitor it and upload it to a pastebin
+ * - never quit
+ * - never read other files
+ * - never write to other files
+ * - display a trailing \n after the prompt
+ */
+
 #include <ctype.h>
 #include <setjmp.h>
 #include <stdio.h>
@@ -441,7 +450,7 @@ static int exec_command( const char ** const ibufpp, const int prev_status,
     case 'a': if( !get_command_suffix( ibufpp, &gflags ) ) return ERR;
               if( !isglobal ) clear_undo_stack();
               if( !append_lines( ibufpp, second_addr, isglobal ) ) return ERR;
-              break;
+              /*break;*/
     case 'c': if( first_addr == 0 ) first_addr = 1;
               if( second_addr == 0 ) second_addr = 1;
               if( !check_current_addr( addr_cnt ) ||
@@ -464,10 +473,11 @@ static int exec_command( const char ** const ibufpp, const int prev_status,
               if( !fnp || !delete_lines( 1, last_addr(), isglobal ) ||
                   !close_sbuf() ) return ERR;
               if( !open_sbuf() ) return FATAL;
-              if( fnp[0] && fnp[0] != '!' ) set_def_filename( fnp );
+              /* avoid opening other files */
+              /*if( fnp[0] && fnp[0] != '!' ) set_def_filename( fnp );*/
               if( traditional() && !fnp[0] && !def_filename[0] )
                 { set_error_msg( "No current filename" ); return ERR; }
-              if( read_file( fnp[0] ? fnp : def_filename, 0 ) < 0 )
+              if( read_file( /* fnp[0] ? fnp : */ def_filename, 0 ) < 0 )
                 return ERR;
               reset_undo_state(); set_modified( false );
               break;
@@ -477,7 +487,8 @@ static int exec_command( const char ** const ibufpp, const int prev_status,
               if( !fnp ) return ERR;
               if( fnp[0] == '!' )
                 { set_error_msg( "Invalid redirection" ); return ERR; }
-              if( fnp[0] ) set_def_filename( fnp );
+              /* filename is fixed */
+              /*if( fnp[0] ) set_def_filename( fnp );*/
               printf( "%s\n", strip_escapes( def_filename ) );
               break;
     case 'g':
@@ -542,6 +553,7 @@ static int exec_command( const char ** const ibufpp, const int prev_status,
     case 'Q': if( unexpected_address( addr_cnt ) ||
                   !get_command_suffix( ibufpp, &gflags ) ) return ERR;
               if( c == 'P' ) prompt_on = !prompt_on;
+              /* never quit */
               /*else if( modified() && !scripted() && c == 'q' &&*/
                        /*prev_status != EMOD ) return EMOD;*/
               /*else return QUIT;*/
@@ -588,6 +600,7 @@ static int exec_command( const char ** const ibufpp, const int prev_status,
                      ( c == 'W' ) ? "a" : "w", first_addr, second_addr );
               if( addr < 0 ) return ERR;
               if( addr == last_addr() ) set_modified( false );
+              /* don't write to other files */
               /*else if( modified() && !scripted() && n == 'q' &&*/
                        /*prev_status != EMOD ) return EMOD;*/
               /*if( n == 'q' || n == 'Q' ) return QUIT;*/
@@ -736,7 +749,9 @@ int main_loop( const bool loose )
     fflush( stdout );
     if( status < 0 && verbose )
       { fprintf( stderr, "%s\n", errmsg ); fflush( stderr ); }
-    if( prompt_on ) { printf( "%s", prompt_str ); fflush( stdout ); }
+    /* the prompt needs a trailing newline on irc
+     * it's kinda pointless anyway */
+    if( prompt_on ) { printf( "%s\n", prompt_str ); fflush( stdout ); }
     ibufp = get_tty_line( &len );
     if( !ibufp ) return err_status;
     if( !len )

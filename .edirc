@@ -5,6 +5,8 @@ nick=edirc
 host=irc.freenode.net
 port=6667
 [[ -r ~/.password ]] && source ~/.password
+owner=izabera
+channels=( "#edirc" "#ed" )
 
 # all the rest
 user=edirc
