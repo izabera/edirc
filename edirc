@@ -4,15 +4,21 @@
 
 
 shopt -s nullglob extglob nocasematch
-trap 'rm -f paste:* fifo*; kill -TERM -$$' EXIT
+trap 'rm -f paste:* fifo*; declare -p spammers > spammers; kill -TERM -$$' EXIT
+
+if [[ -f ./spammers ]]; then
+  . ./spammers
+else
+  declare -A spammers
+fi
 
 
 ignore () {
   for nick; do
     case $nick in
-      -*) for i in "${!spammers[@]}"; do [[ ${spammers[i]} = "$1" ]] && unset "spammers[i]"; done ;;
-      +*) nick=${nick#+} ;&    # use ++nick to ignore +nick
-      *) IFS=, eval '[[ ,"${spammers[*]}", = *,"$1",* ]]' || spammers+=("$1")
+      -?*) unset "spammers[$nick]";;
+      +?*) nick=${nick#+} ;&    # use ++nick to ignore +nick
+      ?*) spammers["$nick"]=x
     esac
   done
 }
@@ -28,16 +34,16 @@ say () { [[ $1 ]] && printf 'PRIVMSG %s :%s\n' "$1" "$2"; }
 
 
 exec 3<>"/dev/tcp/$host/$port" || { echo "Connection to $host failed" >&2 ; exit 1; }
-{
-  printf 'NICK %s\n'  "$nick"
-  printf 'USER %s %s * :%s\n' "${user:-"$nick"}" "${mode:-0}" "${realname:-"$nick"}"
-  [[ $nickserv = yes ]] && printf 'PRIVMSG NickServ :identify %s\n' "$password"
-  join "${channels[@]}"
-} >&3
+exec 1>&3
+
+printf 'NICK %s\n'  "$nick"
+printf 'USER %s %s * :%s\n' "${user:-"$nick"}" "${mode:-0}" "${realname:-"$nick"}"
+[[ $nickserv = yes ]] && printf 'PRIVMSG NickServ :identify %s\n' "$password"
+join "${channels[@]}"
 
 
 # fast way to enter commands directly
-mkfifo fifo && cat <> fifo >&3 &
+mkfifo fifo && cat <> fifo &
 
 # upload pastes
 inotifywait --format %f -m . -e create 2> /dev/null |
@@ -51,7 +57,7 @@ while read -r; do
     fi
     printf 'PRIVMSG %s :%s\n' "$REPLY" "$paste"
   fi
-done >&3 &
+done &
 
 
 # parse what we get from the server
@@ -64,7 +70,7 @@ while read -r raw; do
   msg=${msg#:}
 
   if [[ $sender = PING ]]; then
-    printf 'PONG %s\n' "$type" >&3
+    printf 'PONG %s\n' "$type"
     continue
   fi
 
@@ -73,7 +79,7 @@ while read -r raw; do
     # "/" is valid in chan names and will be replaced by "," which is not
     sender=${sender//\//,} sender=${sender#:} sender=${sender%%!*}
 
-    IFS=, eval '[[ ,"${spammers[*]}", = *,"$sender",* ]]' && continue
+    [[ ${spammers[$nick]} ]] && continue
 
     # in channels, ignore everything that doesn't start with ,
     # privately, everything is fine   (still remove a leading , for the sake of consistency)
@@ -103,7 +109,7 @@ while read -r raw; do
           elif (( row == 3 )); then
             printf "PRIVMSG %s :%s  /* max 3 lines/second */\n" "$target" "$REPLY"
           fi
-        done >&3 &
+        done &
       fi
 
       printf '%s\n' "${msg#:}" > "fifo:$target"
