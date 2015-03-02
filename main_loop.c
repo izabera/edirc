@@ -450,7 +450,7 @@ static int exec_command( const char ** const ibufpp, const int prev_status,
     case 'a': if( !get_command_suffix( ibufpp, &gflags ) ) return ERR;
               if( !isglobal ) clear_undo_stack();
               if( !append_lines( ibufpp, second_addr, isglobal ) ) return ERR;
-              /*break;*/
+              break;
     case 'c': if( first_addr == 0 ) first_addr = 1;
               if( second_addr == 0 ) second_addr = 1;
               if( !check_current_addr( addr_cnt ) ||

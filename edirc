@@ -1,9 +1,18 @@
 #!/bin/bash
-[[ -s ${rc="$HOME/.edirc"} && -r $rc ]] && source "$rc" || # disable rcfile: export rc=
-{ read -r -p 'Nick: ' nick; read -r -p 'Host: ' host; read -r -p 'Port: ' port; read -r -p 'Owner: ' owner; }
+if [[ -s ${rc="$HOME/.edirc"} && -r $rc ]]; then
+  source "$rc"
+else
+  read -r -p 'Nick: ' nick
+  read -r -p 'Host: ' host
+  read -r -p 'Port: ' port
+  read -r -p 'Owner: ' owner
+fi
 
-exec 4> set-x; BASH_XTRACEFD=4; set -x
-#it won't be needed, just in case
+if [[ $trace = yes ]]; then
+  exec 4>> set-x
+  BASH_XTRACEFD=4
+  set -x
+fi
 
 shopt -s nullglob extglob nocasematch
 trap 'rm -f paste:* fifo*; declare -p spammers > spammers; kill -TERM -$$' EXIT
@@ -11,7 +20,7 @@ trap 'rm -f paste:* fifo*; declare -p spammers > spammers; kill -TERM -$$' EXIT
 if [[ -f ./spammers ]]; then
   . ./spammers
 else
-  declare -A spammers=([,]=x)   # at least one element, to avoid an error with declare -p
+  declare -A spammers=()
 fi
 
 
@@ -81,9 +90,10 @@ while read -r raw; do
 
     [[ ${spammers[${sender,,}]} ]] && continue
 
-    # in channels, ignore everything that doesn't start with ,
-    # privately, everything is fine   (still remove a leading , for the sake of consistency)
-    if [[ $msg = "${trigger:-+}"* || $target = "$nick" ]]; then
+    # in channels, ignore everything that doesn't start with the trigger
+    # privately, everything is fine  (still remove the leading trigger for the sake of consistency)
+    # the trigger can be anything, even the empty string
+    if [[ $msg = "${trigger-+}"* || $target = "$nick" ]]; then
 
       if [[ $msg = !* && $sender = "$owner" ]]; then
         # use responsibly
@@ -93,7 +103,7 @@ while read -r raw; do
 
       [[ $target = "$nick" ]] && target=$sender
 
-      # if the fifo doesn't yet exist, ed is not running, start it
+      # if the fifo doesn't yet exist, assume that ed is not running and start it
       # create a file for every user or channel
       if ! [[ -p fifo:$target ]]; then
         touch "ed:$target"
@@ -112,7 +122,7 @@ while read -r raw; do
         done &
       fi
 
-      printf '%s\n' "${msg#"${trigger:-+}"}" > "fifo:$target"
+      printf '%s\n' "${msg#"${trigger-+}"}" > "fifo:$target"
     fi
   fi
 done <&3
