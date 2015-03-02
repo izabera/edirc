@@ -93,10 +93,10 @@ while read -r raw; do
 
       [[ $target = "$nick" ]] && target=$sender
 
-      # if the file doesn't yet exist, ed is not running, start it
+      # if the fifo doesn't yet exist, ed is not running, start it
       # create a file for every user or channel
-      if ! [[ -f ed:$target ]]; then
-        > "ed:$target"
+      if ! [[ -f fifo:$target ]]; then
+        touch "ed:$target"
         mkfifo "fifo:$target"
         ./red "ed:$target" <> "fifo:$target" |&
         while read -r -n 250; do printf "%s\n" "$REPLY"; done | # this may break utf-8 characters(?)
