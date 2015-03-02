@@ -43,8 +43,11 @@ while read -r; do
   if [[ $REPLY = paste:* ]]; then
     paste=$(curl -sF "aringa=<$REPLY" arin.ga)
     rm -f "$REPLY"
-    REPLY=${REPLY#paste:ed:} REPLY=${REPLY//,/\/} REPLY=${REPLY:+$REPLY/raw}  # mira|krank wanted the raw link
-    printf 'PRIVMSG %s :%s\n' "${REPLY:-Upload failed}" "$paste"
+    REPLY=${REPLY#paste:ed:} REPLY=${REPLY//,/\/}
+    if [[ $paste ]]; then paste+=/raw  # mira|krank wanted the raw link
+    else paste="Upload failed"
+    fi
+    printf 'PRIVMSG %s :%s\n' "$REPLY" "$paste"
   fi
 done >&3 &
 
@@ -88,7 +91,7 @@ while read -r raw; do
         > "ed:$target"
         mkfifo "fifo:$target"
         ./red "ed:$target" <> "fifo:$target" |&
-        while read -r -n 250; do printf "%s\n" "$REPLY"; done | # this may break utf-8 characters
+        while read -r -n 250; do printf "%s\n" "$REPLY"; done | # this may break utf-8 characters(?)
         while read -r; do
           if (( SECONDS < 1 )); then (( row ++ ))
           else SECONDS=0 row=1
