@@ -16,6 +16,7 @@ fi
 
 
 ignore () {
+  local nick
   case $1 in
     add) shift; for nick; do spammers["${nick,,}"]=x; done ;;
     del) shift; for nick; do unset "spammers["${nick,,}"]"; done ;;
