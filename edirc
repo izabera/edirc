@@ -15,6 +15,7 @@ if [[ $trace = yes ]]; then
 fi
 
 shopt -s nullglob extglob nocasematch
+set -m
 
 cleanup () {
   rm -f paste:* fifo*
@@ -142,9 +143,9 @@ while read -r raw; do
           bash -nc "${msg#!}" && eval "${msg#!}"
         else
           eval "${msg#!}"
-        fi
+        fi |& splitline "$target"
         continue
-      fi |& splitline "$target"
+      fi
 
       [[ $target = "$nick" ]] && target=$sender
 
