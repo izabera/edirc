@@ -11,6 +11,9 @@ The data can be exported to a pastebin with the X command.
 The source is mostly from GNU ed 1.10, the license is GNU GPL v3+.
 
 You can try it out in freenode, it replies via pm and in #edirc.  
-In channels it ignores every message that doesn't start with , (comma).
+In channels it ignores every message that doesn't start with the trigger (default: +).
+
+It needs a recent-ish bash (tested in 4.3, it should work in 4.2).  
+Optional dependencies are inotifywait and curl to upload the files.
 
 Enjoy.

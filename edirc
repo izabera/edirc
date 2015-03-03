@@ -15,7 +15,14 @@ if [[ $trace = yes ]]; then
 fi
 
 shopt -s nullglob extglob nocasematch
-trap 'rm -f paste:* fifo*; declare -p spammers > spammers; kill -TERM -$$' EXIT
+
+cleanup () {
+  rm -f paste:* fifo*
+  declare -p spammers > spammers
+  kill -TERM -$$
+}
+trap cleanup EXIT
+
 
 if [[ -f ./spammers ]]; then
   . ./spammers
@@ -24,6 +31,27 @@ else
 fi
 
 
+# split the lines and prepend PRIVMSG
+splitline () { 
+  while read -r -n "${linewidth-250}"; do
+    printf 'PRIVMSG %s :%s\n' "$1" "$REPLY"
+  done
+}
+antiflood () {
+  # TODO: make it decent
+  while read -r; do
+    if (( SECONDS < 1 )); then (( row ++ ))
+    else SECONDS=0 row=1
+    fi
+    printf '%s\n' "$REPLY"
+    if (( row == 3 )); then
+      sleep 2
+    fi
+  done
+}
+
+
+# management functions
 ignore () {
   local nick
   case $1 in
@@ -32,21 +60,20 @@ ignore () {
     list) printf 'PRIVMSG %s :%s\n' "$owner" "${!spammers[*]}"
   esac
 }
+# write to the socket directly to bypass splitline/antiflood
+join () { [[ $1 ]] && printf 'JOIN %s\n'          "$@"                   ; } >&"$irc"
+part () { [[ $1 ]] && printf 'PART %s :%s\n'      "$1" "${2-"$partmsg"}" ; } >&"$irc"
+say  () { [[ $2 ]] && printf 'PRIVMSG %s :%s\n'   "$1" "${*:2}"          ; } >&"$irc"
+quit () {             printf 'QUIT :%s\n'         "${*-"$quitmsg"}"      ; } >&"$irc"
+nick () { [[ $1 ]] && printf 'NICK %s\n'          "$1"                   ; } >&"$irc"
+user () { [[ $3 ]] && printf 'USER %s %s * :%s\n' "$@"                   ; } >&"$irc"
 
-join () { printf 'JOIN %s\n' "$@"; }
 
-part () { [[ $1 ]] && printf 'PART %s :%s\n' "$1" "${2-leaving}"; }
+exec {irc}<>"/dev/tcp/$host/$port" || { echo "Connection to $host failed" >&2 ; exit 1; }
+exec 1>&"$irc"
 
-say () { [[ $1 ]] && printf 'PRIVMSG %s :%s\n' "$1" "${*:2}"; }
-
-quit () { printf 'QUIT :%s\n' "${*-edirc: the ed bot}"; }
-
-
-exec 3<>"/dev/tcp/$host/$port" || { echo "Connection to $host failed" >&2 ; exit 1; }
-exec 1>&3
-
-printf 'NICK %s\n'  "$nick"
-printf 'USER %s %s * :%s\n' "${user:-"$nick"}" "${mode:-0}" "${realname:-"$nick"}"
+nick "$nick"
+user "${user:-"$nick"}" "${mode:-0}" "${realname:-"$nick"}"
 [[ $nickserv = yes ]] && printf 'PRIVMSG NickServ :identify %s\n' "$password"
 join "${channels[@]}"
 
@@ -55,18 +82,32 @@ join "${channels[@]}"
 mkfifo fifo && cat <> fifo &
 
 # upload pastes
-inotifywait --format %f -m . -e create 2> /dev/null |
-while read -r; do
-  if [[ $REPLY = paste:* ]]; then
-    paste=$(curl -sF "aringa=<$REPLY" arin.ga)
-    rm -f "$REPLY"
-    REPLY=${REPLY#paste:ed:} REPLY=${REPLY//,/\/}
-    if [[ $paste ]]; then paste+=/raw  # mira|krank wanted the raw link
-    else paste="Upload failed"
+if [[ $upload = yes ]]; then
+  inotifywait --format %f -m . -e create 2> /dev/null |
+  while read -r; do
+    if [[ $REPLY = paste:* ]]; then
+      paste=$(curl -sF "aringa=<$REPLY" arin.ga)
+      rm -f "$REPLY"
+      REPLY=${REPLY#paste:ed:} REPLY=${REPLY//,/\/}
+      if [[ $paste ]]; then paste+=/raw  # mira|krank wanted the raw link
+      else paste='Upload failed'
+      fi
+      printf 'PRIVMSG %s :%s\n' "$REPLY" "$paste"
     fi
-    printf 'PRIVMSG %s :%s\n' "$REPLY" "$paste"
-  fi
-done &
+  done &
+fi
+
+
+removepid () {
+  # someone just tried to crash ed
+  # TODO: find a way to add that user to the spammers list for a minute
+  local pid
+  for pid in "${!edpids[@]}"; do
+    # when ed dies the fifo is removed
+    [[ ! -p "fifo:${edpids[pid]}" ]] && unset "edpids[pid]"
+  done
+}
+trap removepid SIGCHLD
 
 
 # parse what we get from the server
@@ -103,30 +144,32 @@ while read -r raw; do
           eval "${msg#!}"
         fi
         continue
-      fi
+      fi |& splitline "$target"
 
       [[ $target = "$nick" ]] && target=$sender
 
       # if the fifo doesn't yet exist, assume that ed is not running and start it
       # create a file for every user or channel
-      if ! [[ -p fifo:$target ]]; then
-        touch "ed:$target"
+      if [[ ! -p fifo:$target && ${#edpids[@]} -lt 50 ]]; then
+
+        [[ -f "ed:$target" ]] || > "ed:$target"
         mkfifo "fifo:$target"
-        ./red "ed:$target" <> "fifo:$target" |&
-        while read -r -n 250; do printf "%s\n" "$REPLY"; done |
-        while read -r; do
-          if (( SECONDS < 1 )); then (( row ++ ))
-          else SECONDS=0 row=1
-          fi
-          if (( row < 3 )); then
-            printf "PRIVMSG %s :%s\n" "$target" "$REPLY"
-          elif (( row == 3 )); then
-            printf "PRIVMSG %s :%s  /* max 3 lines/second */\n" "$target" "$REPLY"
-          fi
-        done &
+
+        {
+          # huge
+          ulimit -f 16384
+          ulimit -v 32768
+
+          ./red "ed:$target" <> "fifo:$target" |& splitline "$target"
+
+          # ed run out of resources and crashed, clean up
+          rm "fifo:$target"
+        } &
+        edpids+=( ["$!"]=$target )
+
       fi
 
       printf '%s\n' "${msg#"${trigger-+}"}" > "fifo:$target"
     fi
   fi
-done <&3 {log}>> "log$host"
+done <&"$irc" {log}>> "log$host" | antiflood
