@@ -137,6 +137,8 @@ while read -r raw; do
     # the trigger can be anything, even the empty string
     if [[ $msg = "${trigger-+}"* || $target = "$nick" ]]; then
 
+      [[ $target = "$nick" ]] && target=$sender
+
       if [[ $msg = !* && $sender = "$owner" ]]; then
         # use responsibly
         if [[ $pedantic = yes ]]; then
@@ -146,8 +148,6 @@ while read -r raw; do
         fi |& splitline "$target"
         continue
       fi
-
-      [[ $target = "$nick" ]] && target=$sender
 
       # if the fifo doesn't yet exist, assume that ed is not running and start it
       # create a file for every user or channel
