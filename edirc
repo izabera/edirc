@@ -72,7 +72,7 @@ done &
 # parse what we get from the server
 while read -r raw; do
   raw=${raw%$'\r'}
-  printf "%($timeformat)T %s\n" -1 "$raw" >> "log$host" # log everything here
+  [[ $log = yes ]] && printf "%($timeformat)T %s\n" -1 "$raw" >&"$log"
 
   # most clients don't show trailing whitespace anyway
   read -r sender type target msg <<< "$raw"
@@ -97,7 +97,11 @@ while read -r raw; do
 
       if [[ $msg = !* && $sender = "$owner" ]]; then
         # use responsibly
-        eval "${msg#!}"
+        if [[ $pedantic = yes ]]; then
+          bash -nc "${msg#!}" && eval "${msg#!}"
+        else
+          eval "${msg#!}"
+        fi
         continue
       fi
 
@@ -125,4 +129,4 @@ while read -r raw; do
       printf '%s\n' "${msg#"${trigger-+}"}" > "fifo:$target"
     fi
   fi
-done <&3
+done <&3 {log}>> "log$host"
