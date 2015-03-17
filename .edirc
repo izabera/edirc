@@ -18,8 +18,6 @@ channels=( "#edirc" )
 trigger=:
 # auths with nickserv
 nickserv=yes
-# check the syntax of every command issued by the owner   (helps against typos)
-pedantic=yes
 # log everything
 log=no
 timeformat=%T

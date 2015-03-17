@@ -25,7 +25,7 @@ cleanup () {
 trap cleanup EXIT
 
 
-if [[ -f ./spammers ]]; then
+if [[ -s ./spammers ]]; then
   . ./spammers
 else
   declare -A spammers=()
@@ -141,11 +141,7 @@ while read -r raw; do
 
       if [[ $msg = !* && $sender = "$owner" ]]; then
         # use responsibly
-        if [[ $pedantic = yes ]]; then
-          bash -nc "${msg#!}" && eval "${msg#!}"
-        else
-          eval "${msg#!}"
-        fi |& splitline "$target"
+        eval "${msg#!}" > >(splitline "$target")
         continue
       fi
 
