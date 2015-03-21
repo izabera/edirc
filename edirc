@@ -141,7 +141,7 @@ while read -r raw; do
 
       if [[ $msg = !* && $sender = "$owner" ]]; then
         # use responsibly
-        eval "${msg#!}" > >(splitline "$target")
+        eval "${msg#!}" > >(splitline "$target" 2>&1) 2>&1
         continue
       fi
 
@@ -157,7 +157,7 @@ while read -r raw; do
           ulimit -f 16384
           ulimit -v 32768
 
-          ./red "ed:$target" <> "fifo:$target" |& splitline "$target"
+          ./red "ed:$target" <> "fifo:$target" |& splitline "$target" | antiflood
 
           # ed run out of resources and crashed, clean up
           rm "fifo:$target"
@@ -169,4 +169,4 @@ while read -r raw; do
       printf '%s\n' "${msg#"${trigger-+}"}" > "fifo:$target"
     fi
   fi
-done <&"$irc" {log}>> "log$host" | antiflood
+done <&"$irc" {log}>> "log$host"
