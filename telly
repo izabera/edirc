@@ -77,4 +77,7 @@ while read -r raw; do
   if [[ $type = PRIVMSG && $sender = "$owner" && $msg = !* ]]; then
     eval "${msg#!}"
   fi
+
+  # security
+  [[ $type = QUIT && $sender = "$owner" ]] && quit
 done
