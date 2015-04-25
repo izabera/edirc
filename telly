@@ -34,8 +34,12 @@ declare -A notes
 
 TZ=Europe/Rome
 
+# change this at runtime to change the bot's behaviour
+definedlater () { : ; }
+
 while read -r raw; do
   raw=${raw%$'\r'}
+  definedlater "$raw"
 
   read -r sender type target msg <<< "$raw"
   msg=${msg#:} sender=${sender#:} sender=${sender%%!*}
